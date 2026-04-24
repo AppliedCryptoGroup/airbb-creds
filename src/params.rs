@@ -58,9 +58,8 @@ impl PublicParams {
             h1_tau.push((G1Projective::from(h1) * tau_pow).into_affine());
             h2_tau.push((G2Projective::from(h2) * tau_pow).into_affine());
         }
-        g1_tau.push((G1Projective::from(g1) * tau.pow([l as u64 + 1] )).into_affine());
-
-
+        // g1_tau needs one extra power (τ^{l+1}).
+        g1_tau.push((G1Projective::from(g1) * tau.pow([l as u64 + 1])).into_affine());
 
         Self {
             l,

@@ -1,0 +1,83 @@
+use ark_bls12_381::{Bls12_381, Fr, G2Affine, G2Projective};
+use ark_ec::{pairing::Pairing, CurveGroup, VariableBaseMSM};
+use ark_ff::UniformRand;
+use airbnb_creds::commitment::{open, roots_to_coeffs};
+use airbnb_creds::PublicParams;
+
+
+#[test]
+fn test_commit_partial_opening() {
+    let mut rng = ark_std::test_rng();
+    let l = 5;
+    let params = PublicParams::setup(l, &mut rng);
+
+    // Random messages and blinding factor
+    let messages: Vec<Fr> = (0..l).map(|_| Fr::rand(&mut rng)).collect();
+    let a = Fr::rand(&mut rng);
+
+    // Reveal indices 0 and 2; hide the rest
+    let rev_indices = vec![0, 2];
+    let opening = open(&params, &messages, &a, &rev_indices).unwrap();
+
+    // Compute p_Rev(x) = ∏_{i ∈ Rev} (x − M[i]) and evaluate it in the h2 exponent
+    let rev_messages: Vec<Fr> = rev_indices.iter().map(|&i| messages[i]).collect();
+    let h2_p_rev = message_polynomial(&params, &rev_messages);
+
+    // Pairing check: e(C, g2) == e(C_hid, h2^{p_Rev(τ)})
+    let lhs = Bls12_381::pairing(opening.c.0, params.g2);
+    let rhs = Bls12_381::pairing(opening.c_hid.0, h2_p_rev);
+
+    assert_eq!(lhs, rhs, "pairing check failed");
+}
+
+#[test]
+fn test_commit_reveal_all() {
+    let mut rng = ark_std::test_rng();
+    let l = 3;
+    let params = PublicParams::setup(l, &mut rng);
+
+    let messages: Vec<Fr> = (0..l).map(|_| Fr::rand(&mut rng)).collect();
+    let a = Fr::rand(&mut rng);
+
+    let rev_indices: Vec<usize> = (0..l).collect(); // reveal everything
+    let opening = open(&params, &messages, &a, &rev_indices).unwrap();
+
+    let rev_messages: Vec<Fr> = rev_indices.iter().map(|&i| messages[i]).collect();
+    let h2_p_rev = message_polynomial(&params, &rev_messages);
+
+    let lhs = Bls12_381::pairing(opening.c.0, params.g2);
+    let rhs = Bls12_381::pairing(opening.c_hid.0, h2_p_rev);
+
+    assert_eq!(lhs, rhs, "pairing check failed with all messages revealed");
+}
+
+#[test]
+fn test_commit_open_none() {
+    let mut rng = ark_std::test_rng();
+    let l = 4;
+    let params = PublicParams::setup(l, &mut rng);
+
+    let messages: Vec<Fr> = (0..l).map(|_| Fr::rand(&mut rng)).collect();
+    let a = Fr::rand(&mut rng);
+
+    let opening = open(&params, &messages, &a, &[]).unwrap();
+
+    // p_Rev = empty product = 1, so h2^{p_Rev(τ)} = h2^1 = h2
+    let h2_p_rev = message_polynomial(&params, &Vec::<Fr>::new());
+    assert_eq!(h2_p_rev, params.h2, "h2^1 should equal h2");
+
+    let lhs = Bls12_381::pairing(opening.c.0, params.g2);
+    let rhs = Bls12_381::pairing(opening.c_hid.0, h2_p_rev);
+
+    assert_eq!(lhs, rhs, "pairing check failed with no messages revealed");
+}
+
+/// Computes the polynomial in the powers-of-tau in h2 for a set of messages.
+fn message_polynomial(params: &PublicParams, messages: &Vec<Fr>) -> G2Affine {
+    let coeffs = roots_to_coeffs(&messages);
+    let degree = messages.len();
+    let bases: Vec<G2Affine> = std::iter::once(params.h2)
+        .chain(params.h2_tau[..degree].iter().copied())
+        .collect();
+    G2Projective::msm(&bases, &coeffs).unwrap().into_affine()
+}

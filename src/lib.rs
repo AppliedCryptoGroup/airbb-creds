@@ -3,6 +3,7 @@ pub mod hash;
 pub mod keys;
 pub mod params;
 pub mod signature;
+pub mod commitment;
 
 pub use error::Error;
 pub use keys::{keygen, SecretKey, VerificationKey};

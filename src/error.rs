@@ -8,4 +8,8 @@ pub enum Error {
     EmptyMessages,
     #[error("signature is not a valid curve point")]
     InvalidSignature,
+    #[error("revealed index {idx} is out of bounds for message set of length {len}")]
+    InvalidRevealIndex { idx: usize, len: usize },
+    #[error("multi-scalar multiplication failed")]
+    MsmFailed,
 }
