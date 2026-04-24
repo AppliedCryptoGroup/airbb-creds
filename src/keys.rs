@@ -1,4 +1,4 @@
-use ark_bls12_381::{Bls12_381, Fr, G1Projective};
+use ark_bls12_381::{Bls12_381, Fr, G1Affine, G1Projective};
 use ark_ec::{pairing::Pairing, CurveGroup};
 use ark_ff::UniformRand;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
@@ -7,13 +7,18 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::params::PublicParams;
 
-/// Secret key: a random scalar `sk ∈ Fr`.
+/// Secret key: a random scalar `sk ∈ Fr` together with `g1^sk`.
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]
-pub struct SecretKey(pub(crate) Fr);
+pub struct SecretKey {
+    sk: Fr,
+    g1_sk: G1Affine,
+}
 
 impl SecretKey {
-    pub fn random(rng: &mut impl Rng) -> Self {
-        Self(Fr::rand(rng))
+    pub fn random(params: &PublicParams, rng: &mut impl Rng) -> Self {
+        let sk = Fr::rand(rng);
+        let g1_sk = (G1Projective::from(params.g1) * sk).into_affine();
+        Self { sk, g1_sk }
     }
 }
 
@@ -32,9 +37,9 @@ impl VerificationKey {
         self.0.is_one()
     }
 
-    pub fn from_secret(sk: &SecretKey, params: &PublicParams) -> Self {
+    pub fn from_secret(params: &PublicParams, sk: &SecretKey) -> Self {
         // e(g1, g2)^sk = e(sk * g1, g2)  by bilinearity
-        let sk_g1 = (G1Projective::from(params.g1) * sk.0).into_affine();
+        let sk_g1 = (G1Projective::from(params.g1) * sk.sk).into_affine();
         let gt = Bls12_381::pairing(sk_g1, params.g2);
         Self(gt.0)
     }
@@ -42,7 +47,7 @@ impl VerificationKey {
 
 /// Derive the secret key and verification key together.
 pub fn keygen(params: &PublicParams, rng: &mut impl Rng) -> (SecretKey, VerificationKey) {
-    let sk = SecretKey::random(rng);
-    let vk = VerificationKey::from_secret(&sk, params);
+    let sk = SecretKey::random(params, rng);
+    let vk = VerificationKey::from_secret(params, &sk);
     (sk, vk)
 }
