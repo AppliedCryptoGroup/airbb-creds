@@ -1,7 +1,7 @@
-use ark_bls12_381::{Bls12_381, Fr, G2Affine, G2Projective};
+use ark_bls12_381::{Bls12_381, Fr, G1Projective, G2Affine, G2Projective};
 use ark_ec::{pairing::Pairing, CurveGroup, VariableBaseMSM};
 use ark_ff::UniformRand;
-use airbnb_creds::commitment::{open, roots_to_coeffs};
+use airbnb_creds::commitment::{commit, open, roots_to_coeffs};
 use airbnb_creds::PublicParams;
 
 
@@ -70,6 +70,18 @@ fn test_commit_open_none() {
     let rhs = Bls12_381::pairing(opening.c_hid.0, h2_p_rev);
 
     assert_eq!(lhs, rhs, "pairing check failed with no messages revealed");
+}
+
+#[test]
+fn test_commit_empty_set() {
+    let mut rng = ark_std::test_rng();
+    let params = PublicParams::setup(4, &mut rng);
+    let a = Fr::rand(&mut rng);
+
+    // p_M(x) = 1 for the empty set, so C = h1^{a·1} = h1^a
+    let c = commit(&params, &[], &a).unwrap();
+    let expected = (G1Projective::from(params.h1) * a).into_affine();
+    assert_eq!(c.0, expected);
 }
 
 /// Computes the polynomial in the powers-of-tau in h2 for a set of messages.

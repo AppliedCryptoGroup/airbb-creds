@@ -5,7 +5,6 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::UniformRand;
 use rand::Rng;
 
-use crate::hash::hash_to_fr_indexed;
 
 /// Public parameters for the signature scheme.
 ///
