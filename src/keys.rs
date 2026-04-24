@@ -11,7 +11,7 @@ use crate::params::PublicParams;
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct SecretKey {
     sk: Fr,
-    g1_sk: G1Affine,
+    pub(crate) g1_sk: G1Affine,
 }
 
 impl SecretKey {
