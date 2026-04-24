@@ -1,9 +1,8 @@
+use airbnb_creds::signature::{sign, verify};
+use airbnb_creds::{keygen, PublicParams};
 use ark_bls12_381::Fr;
-use ark_ff::One;
 use ark_std::UniformRand;
 use rand::Rng;
-use airbnb_creds::{keygen, PublicParams};
-use airbnb_creds::signature::{sign, verify};
 
 #[test]
 fn valid_signature_verifies() {
@@ -38,4 +37,21 @@ fn different_messages_signature_fails() {
 
     let valid = verify(&params, &vk, &diff_messages, &sig).expect("verify failed");
     assert!(!valid, "signature on different messages verified");
+}
+
+#[test]
+fn wrong_key_signature_fails() {
+    let mut rng = ark_std::test_rng();
+    let l = 5;
+    let params = PublicParams::setup(l, &mut rng);
+
+    let messages: Vec<Fr> = (0..l).map(|_| Fr::rand(&mut rng)).collect();
+
+    let (sk, _) = keygen(&params, &mut rng);
+    let sig = sign(&params, &sk, &messages, &mut rng).expect("signing failed");
+
+    let (_, wrong_vk) = keygen(&params, &mut rng);
+
+    let valid = verify(&params, &wrong_vk, &messages, &sig).expect("verify failed");
+    assert!(!valid, "signature verified under a different key");
 }
