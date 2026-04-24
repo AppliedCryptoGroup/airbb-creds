@@ -5,7 +5,7 @@ use ark_ff::One;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::UniformRand;
 use rand::Rng;
-use crate::commitment::commit;
+use crate::commitment::{commit, CommitGroup};
 use crate::error::Error;
 use crate::keys::{SecretKey, VerificationKey};
 use crate::params::PublicParams;
@@ -51,9 +51,11 @@ pub fn sign(
     rng: &mut impl Rng,
 ) -> Result<Signature, Error> {
     let r = Fr::rand(rng);
-    let c = commit(params, messages, &r)?;
+    let c = commit(params, messages, &r, CommitGroup::G1)?
+        .into_g1()
+        .expect("committed with CommitGroup::G1");
 
-    let sigma1 = (G1Projective::from(sk.g1_sk) + c.0).into_affine();
+    let sigma1 = (G1Projective::from(sk.g1_sk) + c).into_affine();
     let sigma2 = (G1Projective::from(params.g1) * r).into_affine();
 
     Ok(Signature { sigma1, sigma2 })
@@ -74,13 +76,15 @@ pub fn verify(
     messages: &[Fr],
     sig: &Signature,
 ) -> Result<bool, Error> {
-    let c = commit(params, messages, &Fr::one())?;
+    if messages.is_empty() {
+        return Err(Error::EmptyMessages);
+    }
 
+    let c = commit(params, messages, &Fr::one(), CommitGroup::G2)?.into_g2().unwrap();
     let lhs: PairingOutput<Bls12_381> = Bls12_381::pairing(sig.sigma1, params.g2);
-    // let rhs: PairingOutput<Bls12_381> = vk.0 * Bls12_381::pairing(sig.sigma2, params.h2).0;
     // let rhs = vk.0 * Bls12_381::pairing(sig.sigma2, params.h2).0;
     let rhs = PairingOutput::<Bls12_381>(vk.0) +
-        Bls12_381::pairing(sig.sigma2, params.h2);
+        Bls12_381::pairing(sig.sigma2, c);
 
 
     Ok(lhs == rhs)

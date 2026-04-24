@@ -1,7 +1,7 @@
 use ark_bls12_381::{Bls12_381, Fr, G1Projective, G2Affine, G2Projective};
 use ark_ec::{pairing::Pairing, CurveGroup, VariableBaseMSM};
 use ark_ff::UniformRand;
-use airbnb_creds::commitment::{commit, open, roots_to_coeffs};
+use airbnb_creds::commitment::{commit, open, roots_to_coeffs, CommitGroup};
 use airbnb_creds::PublicParams;
 
 
@@ -11,21 +11,19 @@ fn test_commit_partial_opening() {
     let l = 5;
     let params = PublicParams::setup(l, &mut rng);
 
-    // Random messages and blinding factor
     let messages: Vec<Fr> = (0..l).map(|_| Fr::rand(&mut rng)).collect();
     let a = Fr::rand(&mut rng);
 
-    // Reveal indices 0 and 2; hide the rest
     let rev_indices = vec![0, 2];
-    let opening = open(&params, &messages, &a, &rev_indices).unwrap();
+    let (c, c_hid) = open(&params, &messages, &a, &rev_indices, CommitGroup::G1).unwrap();
 
     // Compute p_Rev(x) = ∏_{i ∈ Rev} (x − M[i]) and evaluate it in the h2 exponent
     let rev_messages: Vec<Fr> = rev_indices.iter().map(|&i| messages[i]).collect();
     let h2_p_rev = message_polynomial(&params, &rev_messages);
 
     // Pairing check: e(C, g2) == e(C_hid, h2^{p_Rev(τ)})
-    let lhs = Bls12_381::pairing(opening.c.0, params.g2);
-    let rhs = Bls12_381::pairing(opening.c_hid.0, h2_p_rev);
+    let lhs = Bls12_381::pairing(c.into_g1().unwrap(), params.g2);
+    let rhs = Bls12_381::pairing(c_hid.into_g1().unwrap(), h2_p_rev);
 
     assert_eq!(lhs, rhs, "pairing check failed");
 }
@@ -40,13 +38,13 @@ fn test_commit_reveal_all() {
     let a = Fr::rand(&mut rng);
 
     let rev_indices: Vec<usize> = (0..l).collect(); // reveal everything
-    let opening = open(&params, &messages, &a, &rev_indices).unwrap();
+    let (c, c_hid) = open(&params, &messages, &a, &rev_indices, CommitGroup::G1).unwrap();
 
     let rev_messages: Vec<Fr> = rev_indices.iter().map(|&i| messages[i]).collect();
     let h2_p_rev = message_polynomial(&params, &rev_messages);
 
-    let lhs = Bls12_381::pairing(opening.c.0, params.g2);
-    let rhs = Bls12_381::pairing(opening.c_hid.0, h2_p_rev);
+    let lhs = Bls12_381::pairing(c.into_g1().unwrap(), params.g2);
+    let rhs = Bls12_381::pairing(c_hid.into_g1().unwrap(), h2_p_rev);
 
     assert_eq!(lhs, rhs, "pairing check failed with all messages revealed");
 }
@@ -60,14 +58,14 @@ fn test_commit_open_none() {
     let messages: Vec<Fr> = (0..l).map(|_| Fr::rand(&mut rng)).collect();
     let a = Fr::rand(&mut rng);
 
-    let opening = open(&params, &messages, &a, &[]).unwrap();
+    let (c, c_hid) = open(&params, &messages, &a, &[], CommitGroup::G1).unwrap();
 
     // p_Rev = empty product = 1, so h2^{p_Rev(τ)} = h2^1 = h2
     let h2_p_rev = message_polynomial(&params, &Vec::<Fr>::new());
     assert_eq!(h2_p_rev, params.h2, "h2^1 should equal h2");
 
-    let lhs = Bls12_381::pairing(opening.c.0, params.g2);
-    let rhs = Bls12_381::pairing(opening.c_hid.0, h2_p_rev);
+    let lhs = Bls12_381::pairing(c.into_g1().unwrap(), params.g2);
+    let rhs = Bls12_381::pairing(c_hid.into_g1().unwrap(), h2_p_rev);
 
     assert_eq!(lhs, rhs, "pairing check failed with no messages revealed");
 }
@@ -79,9 +77,9 @@ fn test_commit_empty_set() {
     let a = Fr::rand(&mut rng);
 
     // p_M(x) = 1 for the empty set, so C = h1^{a·1} = h1^a
-    let c = commit(&params, &[], &a).unwrap();
+    let c = commit(&params, &[], &a, CommitGroup::G1).unwrap().into_g1().unwrap();
     let expected = (G1Projective::from(params.h1) * a).into_affine();
-    assert_eq!(c.0, expected);
+    assert_eq!(c, expected);
 }
 
 /// Computes the polynomial in the powers-of-tau in h2 for a set of messages.
