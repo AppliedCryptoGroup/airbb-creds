@@ -6,7 +6,16 @@ use crate::error::Error;
 use crate::params::PublicParams;
 
 /// Specifies which group to commit in.
+#[derive(Debug)]
 pub enum CommitGroup { G1, G2 }
+
+impl std::fmt::Display for CommitGroup {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) ->
+    std::fmt::Result {
+        match self { CommitGroup::G1 => write!(f, "G1"),
+            CommitGroup::G2 => write!(f, "G2") }
+    }
+}
 
 /// A commitment to a polynomial encoding the messages as its roots, evaluated at τ in the exponent.
 ///
@@ -19,12 +28,12 @@ pub enum Commitment {
 }
 
 impl Commitment {
-    pub fn into_g1(self) -> Option<G1Affine> {
-        if let Commitment::G1(p) = self { Some(p) } else { None }
+    pub fn as_g1(&self) -> Option<G1Affine> {
+        if let Commitment::G1(p) = self { Some(*p) } else { None }
     }
 
-    pub fn into_g2(self) -> Option<G2Affine> {
-        if let Commitment::G2(p) = self { Some(p) } else { None }
+    pub fn as_g2(&self) -> Option<G2Affine> {
+        if let Commitment::G2(p) = self { Some(*p) } else { None }
     }
 }
 

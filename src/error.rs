@@ -1,3 +1,4 @@
+use crate::commitment::CommitGroup;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -10,6 +11,10 @@ pub enum Error {
     InvalidSignature,
     #[error("revealed index {idx} is out of bounds for message set of length {len}")]
     InvalidRevealIndex { idx: usize, len: usize },
+    #[error("commitment is in wrong group, expected group {exp_group}")]
+    CommitmentWrongGroup { exp_group: CommitGroup },
+    #[error("blind sign commitment check failed")]
+    InvalidCommitmentOpeningBlindSign,
     #[error("multi-scalar multiplication failed")]
     MsmFailed,
 }

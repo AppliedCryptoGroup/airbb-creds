@@ -1,14 +1,14 @@
+use crate::commitment::{commit, CommitGroup, Commitment};
+use crate::error::Error;
+use crate::keys::{SecretKey, VerificationKey};
+use crate::params::PublicParams;
 use ark_bls12_381::{Bls12_381, Fr, G1Affine, G1Projective};
-use ark_ec::{AffineRepr, CurveGroup};
 use ark_ec::pairing::{Pairing, PairingOutput};
+use ark_ec::CurveGroup;
 use ark_ff::One;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::UniformRand;
 use rand::Rng;
-use crate::commitment::{commit, CommitGroup};
-use crate::error::Error;
-use crate::keys::{SecretKey, VerificationKey};
-use crate::params::PublicParams;
 
 /// An AirBB signature is of the form σ = (σ₁, σ₂) ∈ G1 × G1 where
 ///
@@ -52,8 +52,43 @@ pub fn sign(
 ) -> Result<Signature, Error> {
     let r = Fr::rand(rng);
     let c = commit(params, messages, &r, CommitGroup::G1)?
-        .into_g1()
+        .as_g1()
         .expect("committed with CommitGroup::G1");
+
+    let sigma1 = (G1Projective::from(sk.g1_sk) + c).into_affine();
+    let sigma2 = (G1Projective::from(params.g1) * r).into_affine();
+
+    Ok(Signature { sigma1, sigma2 })
+}
+
+
+pub fn blind_sign(
+    params: &PublicParams,
+    sk: &SecretKey,
+    com: &Commitment,
+    com_hid: &Commitment,
+    rev_messages: &[Fr],
+    rng: &mut impl Rng,
+) -> Result<Signature, Error> {
+    let c = com.as_g1().ok_or(Error::CommitmentWrongGroup {
+        exp_group: CommitGroup::G1,
+    })?;
+    let c_hid = com_hid.as_g1().ok_or(Error::CommitmentWrongGroup {
+        exp_group: CommitGroup::G1,
+    })?;
+
+    // Compute the commitment for the revealed attributes, that is C_rev = h2^{p_{M_rev}(τ)}.
+    let c_rev = commit(params, rev_messages, &Fr::one(), CommitGroup::G2)?.as_g2().unwrap();
+
+    // Check if the commitment opening pair verifies for the set of revealed messages.
+    // e(C, g2) == e(C_hid, C_rev)
+    let lhs: PairingOutput<Bls12_381> = Bls12_381::pairing(c, params.g2);
+    let rhs: PairingOutput<Bls12_381> = Bls12_381::pairing(c_hid, c_rev);
+    if lhs != rhs {
+        return Err(Error::InvalidCommitmentOpeningBlindSign)
+    }
+
+    let r = Fr::rand(rng);
 
     let sigma1 = (G1Projective::from(sk.g1_sk) + c).into_affine();
     let sigma2 = (G1Projective::from(params.g1) * r).into_affine();
@@ -80,7 +115,7 @@ pub fn verify(
         return Err(Error::EmptyMessages);
     }
 
-    let c = commit(params, messages, &Fr::one(), CommitGroup::G2)?.into_g2().unwrap();
+    let c = commit(params, messages, &Fr::one(), CommitGroup::G2)?.as_g2().unwrap();
     let lhs: PairingOutput<Bls12_381> = Bls12_381::pairing(sig.sigma1, params.g2);
     // let rhs = vk.0 * Bls12_381::pairing(sig.sigma2, params.h2).0;
     let rhs = PairingOutput::<Bls12_381>(vk.0) +
