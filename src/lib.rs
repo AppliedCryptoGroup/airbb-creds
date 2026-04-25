@@ -1,5 +1,4 @@
 pub mod error;
-pub mod hash;
 pub mod keys;
 pub mod params;
 pub mod signature;
