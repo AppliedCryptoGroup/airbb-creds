@@ -16,3 +16,8 @@ zeroize        = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
 ark-std = { version = "0.4", features = ["std"] }
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "signing"
+harness = false
