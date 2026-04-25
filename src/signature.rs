@@ -62,6 +62,30 @@ pub fn sign(
 }
 
 
+/// Blind-sign a committed message set, while verifying a revealed subset.
+///
+/// Expects a commitment pair `com` to the full message set `M` and `com_hid` to the subset of
+/// hidden (i.e., non-revealed messages) `M_hid = M \ rev_messages`, along with the revealed
+/// messages `rev_messages`.
+///   C     = h1^{a · p_M(τ)}      — full commitment     (G1)
+///   C_hid = g1^{a · p_hid(τ)}    — hidden commitment   (G1)
+///
+/// # Protocol
+///
+/// 1. Recompute the commitment to the revealed messages in G2.
+///    ```text
+///    C_rev = h2^{p_{M_rev}(τ)}
+///    ```
+/// 2. Verify the commitment opening via the pairing equation:
+///    ```text
+///    e(C, g2) == e(C_hid, C_rev)
+///    ```
+///    Returns `Err(InvalidCommitmentOpeningBlindSign)` if it does not hold.
+/// 3. Sample `r ←$ Fr` and output the signature pair:
+///    ```text
+///    σ₁ = g1^sk · C^r   (in G1)
+///    σ₂ = g1^r           (in G1)
+///    ```
 pub fn blind_sign(
     params: &PublicParams,
     sk: &SecretKey,

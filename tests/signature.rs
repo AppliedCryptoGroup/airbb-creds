@@ -1,4 +1,6 @@
-use airbnb_creds::signature::{sign, verify};
+use airbnb_creds::commitment::{open, CommitGroup};
+use airbnb_creds::signature::{blind_sign, sign, verify};
+use airbnb_creds::Error;
 use airbnb_creds::{keygen, PublicParams};
 use ark_bls12_381::Fr;
 use ark_std::UniformRand;
@@ -54,4 +56,43 @@ fn wrong_key_signature_fails() {
 
     let valid = verify(&params, &wrong_vk, &messages, &sig).expect("verify failed");
     assert!(!valid, "signature verified under a different key");
+}
+
+#[test]
+fn blind_sign_honest_opening_succeeds() {
+    let mut rng = ark_std::test_rng();
+    let l = 5;
+    let params = PublicParams::setup(l, &mut rng);
+    let messages: Vec<Fr> = (0..l).map(|_| Fr::rand(&mut rng)).collect();
+    let (sk, _vk) = keygen(&params, &mut rng);
+
+    let a = Fr::rand(&mut rng);
+    let rev_indices = vec![0, 2];
+    let (com, com_hid) = open(&params, &messages, &a, &rev_indices, CommitGroup::G1).unwrap();
+    let rev_messages: Vec<Fr> = rev_indices.iter().map(|&i| messages[i]).collect();
+
+    let result = blind_sign(&params, &sk, &com, &com_hid, &rev_messages, &mut rng);
+    assert!(result.is_ok(), "blind sign failed: {:?}", result.err());
+}
+
+#[test]
+fn blind_sign_wrong_revealed_messages_fails() {
+    let mut rng = ark_std::test_rng();
+    let l = 5;
+    let params = PublicParams::setup(l, &mut rng);
+    let messages: Vec<Fr> = (0..l).map(|_| Fr::rand(&mut rng)).collect();
+    let (sk, _vk) = keygen(&params, &mut rng);
+
+    let a = Fr::rand(&mut rng);
+    let rev_indices = vec![0, 2];
+    let (com, com_hid) = open(&params, &messages, &a, &rev_indices, CommitGroup::G1).unwrap();
+
+    // Provide a random set of messages as the set of revealed messages.
+    let wrong_rev: Vec<Fr> = (0..2).map(|_| Fr::rand(&mut rng)).collect();
+
+    let result = blind_sign(&params, &sk, &com, &com_hid, &wrong_rev, &mut rng);
+    assert!(
+        matches!(result, Err(Error::InvalidCommitmentOpeningBlindSign)),
+        "expected InvalidCommitmentOpeningBlindSign, got: {:?}", result
+    );
 }
