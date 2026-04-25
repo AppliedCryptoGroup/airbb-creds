@@ -2,7 +2,7 @@ use airbnb_creds::signature::sign;
 use airbnb_creds::{keygen, PublicParams};
 use ark_bls12_381::Fr;
 use ark_std::UniformRand;
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use rand::Rng;
 
 fn bench_signing(c: &mut Criterion) {
@@ -11,6 +11,7 @@ fn bench_signing(c: &mut Criterion) {
     let num_attr: Vec<usize> = vec![1, 10, 50, 100, 500, 1000];
 
     for l in num_attr {
+        group.throughput(Throughput::Elements(l as u64));
         group.bench_with_input(BenchmarkId::from_parameter(l), &l, |b, &l| {
             let setup = bench_setup(l, &mut rng);
 
