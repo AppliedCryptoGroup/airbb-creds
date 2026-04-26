@@ -141,7 +141,6 @@ pub fn verify(
 
     let c = commit(params, messages, &Fr::one(), CommitGroup::G2)?.as_g2().unwrap();
     let lhs: PairingOutput<Bls12_381> = Bls12_381::pairing(sig.sigma1, params.g2);
-    // let rhs = vk.0 * Bls12_381::pairing(sig.sigma2, params.h2).0;
     let rhs = PairingOutput::<Bls12_381>(vk.0) +
         Bls12_381::pairing(sig.sigma2, c);
 

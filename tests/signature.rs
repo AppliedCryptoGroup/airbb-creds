@@ -68,7 +68,7 @@ fn blind_sign_honest_opening_succeeds() {
 
     let a = Fr::rand(&mut rng);
     let rev_indices = vec![0, 2];
-    let (com, com_hid) = open(&params, &messages, &a, &rev_indices, CommitGroup::G1).unwrap();
+    let (com, com_hid) = open(&params, &messages, &a, &rev_indices, None, CommitGroup::G1).unwrap();
     let rev_messages: Vec<Fr> = rev_indices.iter().map(|&i| messages[i]).collect();
 
     let result = blind_sign(&params, &sk, &com, &com_hid, &rev_messages, &mut rng);
@@ -85,7 +85,7 @@ fn blind_sign_wrong_revealed_messages_fails() {
 
     let a = Fr::rand(&mut rng);
     let rev_indices = vec![0, 2];
-    let (com, com_hid) = open(&params, &messages, &a, &rev_indices, CommitGroup::G1).unwrap();
+    let (com, com_hid) = open(&params, &messages, &a, &rev_indices, None, CommitGroup::G1).unwrap();
 
     // Provide a random set of messages as the set of revealed messages.
     let wrong_rev: Vec<Fr> = (0..2).map(|_| Fr::rand(&mut rng)).collect();

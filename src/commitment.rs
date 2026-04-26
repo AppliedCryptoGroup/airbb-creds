@@ -67,16 +67,18 @@ pub fn commit(params: &PublicParams, messages: &[Fr], a: &Fr, group: CommitGroup
 }
 
 /// Opens a commitment by revealing a subset of messages indexed by `rev_indices`.
+/// If auxiliary data `aux` is provided, it is added to the hidden commitment.
 ///
 /// Returns `(C, C_hid)` where:
-///   C     = h{1,2}^{a · p_M(τ)}       - full commitment in the specified `group`
-///   C_hid = g1^{a · p_hid(τ)}         - hidden commitment (always in G1)
+///   C     = h{1,2}^{r · p_M(τ)}            - full commitment in the specified `group`
+///   C_hid = g1^{(r · p_hid(τ) * (τ - aux)} - hidden commitment (always in G1)
 ///   p_hid(x) = ∏_{i ∉ Rev} (x − M[i])
 pub fn open(
     params: &PublicParams,
     messages: &[Fr],
-    a: &Fr,
+    r: &Fr,
     rev_indices: &[usize],
+    aux: Option<Fr>,
     group: CommitGroup,
 ) -> Result<(Commitment, Commitment), Error> {
     if messages.len() > params.l {
@@ -94,22 +96,48 @@ pub fn open(
         }
     }
 
-    let c = commit(params, messages, a, group)?;
+    let c = commit(params, messages, r, group)?;
 
-    let hid_messages: Vec<Fr> = (0..messages.len())
+    let mut hid_messages: Vec<Fr> = (0..messages.len())
         .filter(|i| !rev_indices.contains(i))
         .map(|i| messages[i])
         .collect();
+
+    // If auxiliary data is given, treat it as an additional hidden message.
+    if let Some(aux) = aux {
+        hid_messages.push(aux);
+    }
 
     let hid_coeffs = roots_to_coeffs(&hid_messages);
     let bases = g1_bases(hid_messages.len(), params);
     let c_hid_point = G1Projective::msm(&bases, &hid_coeffs)
         .map_err(|_| Error::MsmFailed)?;
-    let c_hid = Commitment::G1((c_hid_point * a).into_affine());
+    let c_hid = Commitment::G1((c_hid_point * r).into_affine());
 
     Ok((c, c_hid))
 }
 
+
+/// Convert a list of roots into polynomial coefficients (naively in O(k²)).
+///
+/// Given roots [m_1, ..., m_k] returns [c_0, c_1, ..., c_k] such that
+///   p(x) = ∏(x − m_i) = c_0 + c_1·x + … + c_k·x^k
+///
+/// The leading coefficient c_k is always 1 (i.e., a monic polynomial).
+pub fn roots_to_coeffs(roots: &[Fr]) -> Vec<Fr> {
+    let mut coeffs = vec![Fr::one()];
+
+    for &root in roots {
+        let mut new_coeffs = vec![Fr::zero(); coeffs.len() + 1];
+        for (i, &c) in coeffs.iter().enumerate() {
+            new_coeffs[i] -= root * c;
+            new_coeffs[i + 1] += c;
+        }
+        coeffs = new_coeffs;
+    }
+
+    coeffs
+}
 
 /// Build [h1, h1_tau[0], ..., h1_tau[degree-1]].
 fn h1_bases(degree: usize, params: &PublicParams) -> Vec<G1Affine> {
@@ -132,23 +160,4 @@ fn g1_bases(degree: usize, params: &PublicParams) -> Vec<G1Affine> {
         .collect()
 }
 
-/// Convert a list of roots into polynomial coefficients (naively in O(k²)).
-///
-/// Given roots [m_1, ..., m_k] returns [c_0, c_1, ..., c_k] such that
-///   p(x) = ∏(x − m_i) = c_0 + c_1·x + … + c_k·x^k
-///
-/// The leading coefficient c_k is always 1 (i.e., a monic polynomial).
-pub fn roots_to_coeffs(roots: &[Fr]) -> Vec<Fr> {
-    let mut coeffs = vec![Fr::one()];
 
-    for &root in roots {
-        let mut new_coeffs = vec![Fr::zero(); coeffs.len() + 1];
-        for (i, &c) in coeffs.iter().enumerate() {
-            new_coeffs[i] -= root * c;
-            new_coeffs[i + 1] += c;
-        }
-        coeffs = new_coeffs;
-    }
-
-    coeffs
-}

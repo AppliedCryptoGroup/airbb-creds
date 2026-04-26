@@ -15,11 +15,11 @@ fn test_commit_partial_opening() {
     let a = Fr::rand(&mut rng);
 
     let rev_indices = vec![0, 2];
-    let (c, c_hid) = open(&params, &messages, &a, &rev_indices, CommitGroup::G1).unwrap();
+    let (c, c_hid) = open(&params, &messages, &a, &rev_indices, None, CommitGroup::G1).unwrap();
 
     // Compute p_Rev(x) = ∏_{i ∈ Rev} (x − M[i]) and evaluate it in the h2 exponent
     let rev_messages: Vec<Fr> = rev_indices.iter().map(|&i| messages[i]).collect();
-    let h2_p_rev = message_polynomial(&params, &rev_messages);
+    let h2_p_rev = h2_message_poly(&params, &rev_messages);
 
     // Pairing check: e(C, g2) == e(C_hid, h2^{p_Rev(τ)})
     let lhs = Bls12_381::pairing(c.as_g1().unwrap(), params.g2);
@@ -38,10 +38,10 @@ fn test_commit_reveal_all() {
     let a = Fr::rand(&mut rng);
 
     let rev_indices: Vec<usize> = (0..l).collect(); // reveal everything
-    let (c, c_hid) = open(&params, &messages, &a, &rev_indices, CommitGroup::G1).unwrap();
+    let (c, c_hid) = open(&params, &messages, &a, &rev_indices, None, CommitGroup::G1).unwrap();
 
     let rev_messages: Vec<Fr> = rev_indices.iter().map(|&i| messages[i]).collect();
-    let h2_p_rev = message_polynomial(&params, &rev_messages);
+    let h2_p_rev = h2_message_poly(&params, &rev_messages);
 
     let lhs = Bls12_381::pairing(c.as_g1().unwrap(), params.g2);
     let rhs = Bls12_381::pairing(c_hid.as_g1().unwrap(), h2_p_rev);
@@ -58,10 +58,10 @@ fn test_commit_open_none() {
     let messages: Vec<Fr> = (0..l).map(|_| Fr::rand(&mut rng)).collect();
     let a = Fr::rand(&mut rng);
 
-    let (c, c_hid) = open(&params, &messages, &a, &[], CommitGroup::G1).unwrap();
+    let (c, c_hid) = open(&params, &messages, &a, &[], None, CommitGroup::G1).unwrap();
 
     // p_Rev = empty product = 1, so h2^{p_Rev(τ)} = h2^1 = h2
-    let h2_p_rev = message_polynomial(&params, &Vec::<Fr>::new());
+    let h2_p_rev = h2_message_poly(&params, &Vec::<Fr>::new());
     assert_eq!(h2_p_rev, params.h2, "h2^1 should equal h2");
 
     let lhs = Bls12_381::pairing(c.as_g1().unwrap(), params.g2);
@@ -83,7 +83,7 @@ fn test_commit_empty_set() {
 }
 
 /// Computes the polynomial in the powers-of-tau in h2 for a set of messages.
-fn message_polynomial(params: &PublicParams, messages: &Vec<Fr>) -> G2Affine {
+fn h2_message_poly(params: &PublicParams, messages: &Vec<Fr>) -> G2Affine {
     let coeffs = roots_to_coeffs(&messages);
     let degree = messages.len();
     let bases: Vec<G2Affine> = std::iter::once(params.h2)
