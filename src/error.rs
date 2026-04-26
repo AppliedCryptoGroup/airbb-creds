@@ -17,4 +17,6 @@ pub enum Error {
     InvalidCommitmentOpeningBlindSign,
     #[error("multi-scalar multiplication failed")]
     MsmFailed,
+    #[error("scalar is zero and has no inverse")]
+    ZeroScalar,
 }

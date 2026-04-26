@@ -78,7 +78,7 @@ pub fn open(
     messages: &[Fr],
     r: &Fr,
     rev_indices: &[usize],
-    aux: Option<Fr>,
+    aux: Option<&Fr>,
     group: CommitGroup,
 ) -> Result<(Commitment, Commitment), Error> {
     if messages.len() > params.l {
@@ -105,7 +105,7 @@ pub fn open(
 
     // If auxiliary data is given, treat it as an additional hidden message.
     if let Some(aux) = aux {
-        hid_messages.push(aux);
+        hid_messages.push(*aux);
     }
 
     let hid_coeffs = roots_to_coeffs(&hid_messages);
