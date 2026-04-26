@@ -7,7 +7,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::params::PublicParams;
 
-/// Secret key: a random scalar `sk ∈ Fr` together with `g1^sk`.
+/// Secret key: a random scalar `sk` and `g1^sk` used for signing.
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct SecretKey {
     sk: Fr,
@@ -24,14 +24,11 @@ impl SecretKey {
 
 /// Verification key: `vk = e(g1, g2)^sk = g_t^sk`.
 ///
-/// Computed via bilinearity as `e(sk·g1, g2)`, avoiding an explicit GT
-/// exponentiation.
+/// Computed using a pairing as `e(sk·g1, g2)`.
 #[derive(Clone, Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct VerificationKey(pub(crate) <Bls12_381 as Pairing>::TargetField);
 
 impl VerificationKey {
-    /// Returns true if the VK equals the GT identity (multiplicative identity = Fp12::ONE).
-    /// A correctly generated VK with non-zero sk is never the identity.
     pub fn is_identity(&self) -> bool {
         use ark_ff::One;
         self.0.is_one()
@@ -45,7 +42,7 @@ impl VerificationKey {
     }
 }
 
-/// Derive the secret key and verification key together.
+/// Sample a new secret- and verification key.
 pub fn keygen(params: &PublicParams, rng: &mut impl Rng) -> (SecretKey, VerificationKey) {
     let sk = SecretKey::random(params, rng);
     let vk = VerificationKey::from_secret(params, &sk);
