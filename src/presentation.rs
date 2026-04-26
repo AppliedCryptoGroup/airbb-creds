@@ -52,7 +52,7 @@ pub struct Presentation {
 ///    C     = h2^{a₁·p_M(τ)}
 ///    C_hid = g1^{a₁·p_hid(τ)·(τ − aux)}
 ///    ```
-/// 4. Output the presentation proof (σ′₁, σ′₂, C, C_hid).
+/// 4. Return the presentation proof (σ₁', σ₂', C, C_hid).
 pub fn present(
     params: &PublicParams,
     cred: &Credential,

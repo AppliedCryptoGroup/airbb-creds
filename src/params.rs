@@ -23,18 +23,17 @@ pub struct PublicParams {
     /// H generator in G2.
     pub h2: G2Affine,
 
-    /// Powers-of-tau setup for some secret τ.
-    /// g1_tau = [g1^τ, g1^{τ^2}, ..., g1^{τ^(l+1)}]
+    /// Powers-of-tau for secret τ.
+    /// `[g1^τ, g1^{τ²}, ..., g1^{τ^{l+1}}]`
     pub g1_tau: Vec<G1Affine>,
-    /// h2_tau = [h1^τ, h1^{τ^2}, ..., h1^{τ^l}]
+    /// `[h2^τ, h2^{τ²}, ..., h2^{τ^l}]`
     pub h2_tau: Vec<G2Affine>,
-    /// h1_tau = [h2^τ, h2^{τ^2}, ..., h2^{τ^l}]
+    /// `[h1^τ, h1^{τ²}, ..., h1^{τ^l}]`
     pub h1_tau: Vec<G1Affine>
 }
 
 impl PublicParams {
-    /// Derive a structured reference string for up to `l` messages.
-    ///
+    /// Set up the structured reference string for up to `l` messages.
     pub fn setup(l: usize, rng: &mut impl Rng) -> Self {
         assert!(l > 0, "l must be at least 1");
 
@@ -45,7 +44,7 @@ impl PublicParams {
         let h1: G1Affine = (G1Projective::from(g1) * hx).into_affine();
         let h2: G2Affine = (G2Projective::from(g2) * hx).into_affine();
 
-        // Generate a random τ as a random field element using the Rng
+        // Sample secret τ
         let tau: Fr = Fr::rand(rng);
         let mut g1_tau =  Vec::<G1Affine>::with_capacity(l + 1);
         let mut h1_tau =  Vec::<G1Affine>::with_capacity(l);

@@ -101,10 +101,9 @@ pub fn blind_sign(
         exp_group: CommitGroup::G1,
     })?;
 
-    // Compute the commitment for the revealed attributes, that is C_rev = h2^{p_{M_rev}(τ)}.
+    // C_rev = h2^{p_{M_rev}(τ)}
     let c_rev = commit(params, rev_messages, &Fr::one(), CommitGroup::G2)?.as_g2().unwrap();
 
-    // Check if the commitment opening pair verifies for the set of revealed messages.
     // e(C, g2) == e(C_hid, C_rev)
     let lhs: PairingOutput<Bls12_381> = Bls12_381::pairing(c, params.g2);
     let rhs: PairingOutput<Bls12_381> = Bls12_381::pairing(c_hid, c_rev);
@@ -120,12 +119,10 @@ pub fn blind_sign(
     Ok(Signature { sigma1, sigma2 })
 }
 
-/// Verify a signature σ = (σ₁, σ₂) against `vk` and a message set.
-///
-/// # Protocol
+/// Verify a signature (σ₁, σ₂) against `vk` and a message set.
 ///
 ///
-/// 1. Re-derive the set commitment `C = h2^{a·p_M(τ)}` for `messages`.
+/// 1. Re-derive the set commitment `C = h2^{a·p_M(τ)}` for the set `messages`.
 /// 2. Check the pairing equation:
 ///    ```text
 ///    e(σ₁, g2) = vk · e(σ₂, C)
