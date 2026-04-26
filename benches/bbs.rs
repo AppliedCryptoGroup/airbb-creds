@@ -1,0 +1,136 @@
+use ark_bls12_381::{Bls12_381, Fr};
+use ark_ff::UniformRand;
+use bbs_plus::proof_23::PoKOfSignature23G1Protocol;
+use bbs_plus::setup::{KeypairG2, SignatureParams23G1};
+use bbs_plus::signature_23::Signature23G1;
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use dock_crypto_utils::signature::MessageOrBlinding;
+use rand::Rng;
+use std::collections::BTreeMap;
+
+type E = Bls12_381;
+
+struct BenchSetup {
+    params: SignatureParams23G1<E>,
+    keypair: KeypairG2<E>,
+    messages: Vec<Fr>,
+    sig: Signature23G1<E>,
+}
+
+fn bench_setup(l: usize, rng: &mut impl Rng) -> BenchSetup {
+    let params = SignatureParams23G1::<E>::generate_using_rng(rng, l as u32);
+    let keypair = KeypairG2::<E>::generate_using_rng_and_bbs23_params(rng, &params);
+    let messages: Vec<Fr> = (0..l).map(|_| Fr::rand(rng)).collect();
+    let sig = Signature23G1::<E>::new(rng, &messages, &keypair.secret_key, &params).unwrap();
+    BenchSetup { params, keypair, messages, sig }
+}
+
+fn bench_sign(c: &mut Criterion) {
+    let mut group = c.benchmark_group("bbs/signing");
+    let mut rng = ark_std::test_rng();
+    let sizes: Vec<usize> = vec![1, 10, 50, 100, 500, 1000];
+
+    for l in sizes {
+        group.throughput(Throughput::Elements(l as u64));
+        group.bench_with_input(BenchmarkId::from_parameter(l), &l, |b, &l| {
+            let setup = bench_setup(l, &mut rng);
+            b.iter(|| {
+                Signature23G1::<E>::new(
+                    &mut rng,
+                    black_box(&setup.messages),
+                    black_box(&setup.keypair.secret_key),
+                    black_box(&setup.params),
+                )
+                .unwrap()
+            });
+        });
+    }
+    group.finish();
+}
+
+fn bench_present(c: &mut Criterion) {
+    let mut group = c.benchmark_group("bbs/present");
+    let mut rng = ark_std::test_rng();
+    let sizes: Vec<usize> = vec![1, 10, 50, 100, 500];
+
+    for l in sizes {
+        group.throughput(Throughput::Elements(l as u64));
+        group.bench_with_input(BenchmarkId::from_parameter(l), &l, |b, &l| {
+            let setup = bench_setup(l, &mut rng);
+            let rev_indices: Vec<usize> = (0..l / 2).collect();
+            let challenge = Fr::rand(&mut rng);
+
+            b.iter(|| {
+                let msgs_and_blindings = setup.messages.iter().enumerate().map(|(i, msg)| {
+                    if rev_indices.contains(&i) {
+                        MessageOrBlinding::RevealMessage(msg)
+                    } else {
+                        MessageOrBlinding::BlindMessageRandomly(msg)
+                    }
+                });
+                let protocol = PoKOfSignature23G1Protocol::<E>::init(
+                    &mut rng,
+                    None,
+                    None,
+                    black_box(&setup.sig),
+                    black_box(&setup.params),
+                    msgs_and_blindings,
+                )
+                .unwrap();
+                protocol.gen_proof(black_box(&challenge)).unwrap()
+            });
+        });
+    }
+    group.finish();
+}
+
+fn bench_verify_present(c: &mut Criterion) {
+    let mut group = c.benchmark_group("bbs/verify_present");
+    let mut rng = ark_std::test_rng();
+    let sizes: Vec<usize> = vec![1, 10, 50, 100, 500];
+
+    for l in sizes {
+        group.throughput(Throughput::Elements(l as u64));
+        group.bench_with_input(BenchmarkId::from_parameter(l), &l, |b, &l| {
+            let setup = bench_setup(l, &mut rng);
+            let rev_indices: Vec<usize> = (0..l / 2).collect();
+            let challenge = Fr::rand(&mut rng);
+
+            let msgs_and_blindings = setup.messages.iter().enumerate().map(|(i, msg)| {
+                if rev_indices.contains(&i) {
+                    MessageOrBlinding::RevealMessage(msg)
+                } else {
+                    MessageOrBlinding::BlindMessageRandomly(msg)
+                }
+            });
+            let protocol = PoKOfSignature23G1Protocol::<E>::init(
+                &mut rng,
+                None,
+                None,
+                &setup.sig,
+                &setup.params,
+                msgs_and_blindings,
+            )
+            .unwrap();
+            let proof = protocol.gen_proof(&challenge).unwrap();
+
+            let revealed_msgs: BTreeMap<usize, Fr> =
+                rev_indices.iter().map(|&i| (i, setup.messages[i])).collect();
+
+            b.iter(|| {
+                proof
+                    .verify(
+                        black_box(&revealed_msgs),
+                        black_box(&challenge),
+                        setup.keypair.public_key.clone(),
+                        setup.params.clone(),
+                    )
+                    .unwrap()
+            });
+        });
+    }
+    group.finish();
+}
+
+criterion_group!(benches, bench_sign, bench_present, bench_verify_present);
+criterion_main!(benches);
