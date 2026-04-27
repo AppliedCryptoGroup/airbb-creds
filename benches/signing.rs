@@ -37,8 +37,9 @@ fn bench_blind_signing(c: &mut Criterion) {
         group.throughput(Throughput::Elements(l as u64));
         group.bench_with_input(BenchmarkId::from_parameter(l), &l, |b, &l| {
             let setup = bench_setup(l, &mut rng);
-            // Always reveal half of the attributes for blind signing.
-            let rev_indices: Vec<usize> = (0..l / 2).collect();
+            // Always reveal half of the attributes for blind signing (at least one).
+            let rev_limit = (l / 2).max(1);
+            let rev_indices: Vec<usize> = (0..rev_limit).collect();
             let a = Fr::rand(&mut rng);
             let (com, com_hid) = open(&setup.params, &setup.messages, &a, &rev_indices, None, CommitGroup::G1)
                 .expect("open failed");

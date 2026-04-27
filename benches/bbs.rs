@@ -92,7 +92,8 @@ fn bench_present(c: &mut Criterion) {
         group.throughput(Throughput::Elements(l as u64));
         group.bench_with_input(BenchmarkId::from_parameter(l), &l, |b, &l| {
             let setup = setup(l, &mut rng);
-            let rev_indices: Vec<usize> = (0..l / 2).collect();
+            let rev_limit = (l / 2).max(1);
+            let rev_indices: Vec<usize> = (0..rev_limit).collect();
             let challenge = Fr::rand(&mut rng);
 
             b.iter(|| {
@@ -128,7 +129,8 @@ fn bench_verify_present(c: &mut Criterion) {
         group.throughput(Throughput::Elements(l as u64));
         group.bench_with_input(BenchmarkId::from_parameter(l), &l, |b, &l| {
             let setup = setup(l, &mut rng);
-            let rev_indices: Vec<usize> = (0..l / 2).collect();
+            let rev_limit = (l / 2).max(1);
+            let rev_indices: Vec<usize> = (0..rev_limit).collect();
             let challenge = Fr::rand(&mut rng);
 
             let msgs_and_blindings = setup.messages.iter().enumerate().map(|(i, msg)| {

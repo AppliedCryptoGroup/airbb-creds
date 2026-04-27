@@ -46,7 +46,7 @@ fn bench_verify_present(c: &mut Criterion) {
         group.throughput(Throughput::Elements(l as u64));
         group.bench_with_input(BenchmarkId::from_parameter(l), &l, |b, &l| {
             let setup = bench_setup(l, &mut rng);
-            let rev_indices: Vec<usize> = (0..l / 2).collect();
+            let rev_indices: Vec<usize> = (0..(l / 2).max(1)).collect();
             let aux = Fr::rand(&mut rng);
             let presentation =
                 present(&setup.params, &setup.cred, &rev_indices, &aux, &mut rng)
