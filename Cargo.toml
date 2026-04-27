@@ -16,7 +16,7 @@ zeroize        = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
 ark-std = { version = "0.4", features = ["std"] }
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.8.2", features = ["html_reports"] }
 bbs_plus = "0.25.0"
 dock_crypto_utils = "0.23.0"
 
