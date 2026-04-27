@@ -6,12 +6,14 @@ use ark_std::UniformRand;
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use rand::Rng;
 
+
+const NUM_ATTR: &[usize] = &[1, 2, 10, 25, 50, 100];
+
 fn bench_signing(c: &mut Criterion) {
     let mut group = c.benchmark_group("signing");
     let mut rng = ark_std::test_rng();
-    let num_attr: Vec<usize> = vec![1, 10, 50, 100, 500, 1000];
 
-    for l in num_attr {
+    for &l in NUM_ATTR {
         group.throughput(Throughput::Elements(l as u64));
         group.bench_with_input(BenchmarkId::from_parameter(l), &l, |b, &l| {
             let setup = bench_setup(l, &mut rng);
@@ -29,9 +31,8 @@ fn bench_signing(c: &mut Criterion) {
 fn bench_blind_signing(c: &mut Criterion) {
     let mut group = c.benchmark_group("blind_signing");
     let mut rng = ark_std::test_rng();
-    let num_attr: Vec<usize> = vec![2, 10, 50, 100, 500];
 
-    for l in num_attr {
+    for &l in NUM_ATTR {
         group.throughput(Throughput::Elements(l as u64));
         group.bench_with_input(BenchmarkId::from_parameter(l), &l, |b, &l| {
             let setup = bench_setup(l, &mut rng);

@@ -17,23 +17,16 @@ struct BenchSetup {
     sig: Signature23G1<E>,
 }
 
-fn bench_setup(l: usize, rng: &mut impl Rng) -> BenchSetup {
-    let params = SignatureParams23G1::<E>::generate_using_rng(rng, l as u32);
-    let keypair = KeypairG2::<E>::generate_using_rng_and_bbs23_params(rng, &params);
-    let messages: Vec<Fr> = (0..l).map(|_| Fr::rand(rng)).collect();
-    let sig = Signature23G1::<E>::new(rng, &messages, &keypair.secret_key, &params).unwrap();
-    BenchSetup { params, keypair, messages, sig }
-}
+const NUM_ATTR: &[usize] = &[1, 2, 10, 25, 50, 100];
 
 fn bench_sign(c: &mut Criterion) {
     let mut group = c.benchmark_group("bbs/signing");
     let mut rng = ark_std::test_rng();
-    let sizes: Vec<usize> = vec![1, 10, 50, 100, 500, 1000];
 
-    for l in sizes {
+    for &l in NUM_ATTR {
         group.throughput(Throughput::Elements(l as u64));
         group.bench_with_input(BenchmarkId::from_parameter(l), &l, |b, &l| {
-            let setup = bench_setup(l, &mut rng);
+            let setup = setup(l, &mut rng);
             b.iter(|| {
                 Signature23G1::<E>::new(
                     &mut rng,
@@ -48,15 +41,55 @@ fn bench_sign(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_blind_sign(c: &mut Criterion) {
+    let mut group = c.benchmark_group("bbs/blind_signing");
+    let mut rng = ark_std::test_rng();
+
+    for &l in NUM_ATTR {
+        group.throughput(Throughput::Elements(l as u64));
+        group.bench_with_input(BenchmarkId::from_parameter(l), &l, |b, &l| {
+            let setup = setup(l, &mut rng);
+
+            // Split messages to first half hidden (i.e., committed), second half known to signer.
+            let hidden_count = l / 2;
+            // Contains a vector of index-message pairs for the hidden messages.
+            let hidden: Vec<(usize, &Fr)> = setup.messages[..hidden_count]
+                .iter()
+                .enumerate()
+                .collect();
+            let commitment = setup.params
+                .commit_to_messages(hidden)
+                .expect("commit failed");
+            // Expects the revealed messages as an ordered map of index-message pairs.
+            let revealed: BTreeMap<usize, &Fr> = setup.messages[hidden_count..]
+                .iter()
+                .enumerate()
+                .map(|(i, m)| (hidden_count + i, m))
+                .collect();
+
+            b.iter(|| {
+                Signature23G1::<E>::new_with_committed_messages(
+                    &mut rng,
+                    black_box(&commitment),
+                    black_box(revealed.clone()),
+                    black_box(&setup.keypair.secret_key),
+                    black_box(&setup.params),
+                ).expect("blind_sign failed");
+            });
+        });
+    }
+
+    group.finish();
+}
+
 fn bench_present(c: &mut Criterion) {
     let mut group = c.benchmark_group("bbs/present");
     let mut rng = ark_std::test_rng();
-    let sizes: Vec<usize> = vec![1, 10, 50, 100, 500];
 
-    for l in sizes {
+    for &l in NUM_ATTR {
         group.throughput(Throughput::Elements(l as u64));
         group.bench_with_input(BenchmarkId::from_parameter(l), &l, |b, &l| {
-            let setup = bench_setup(l, &mut rng);
+            let setup = setup(l, &mut rng);
             let rev_indices: Vec<usize> = (0..l / 2).collect();
             let challenge = Fr::rand(&mut rng);
 
@@ -75,8 +108,8 @@ fn bench_present(c: &mut Criterion) {
                     black_box(&setup.sig),
                     black_box(&setup.params),
                     msgs_and_blindings,
-                )
-                .unwrap();
+                ).unwrap();
+
                 protocol.gen_proof(black_box(&challenge)).unwrap()
             });
         });
@@ -92,7 +125,7 @@ fn bench_verify_present(c: &mut Criterion) {
     for l in sizes {
         group.throughput(Throughput::Elements(l as u64));
         group.bench_with_input(BenchmarkId::from_parameter(l), &l, |b, &l| {
-            let setup = bench_setup(l, &mut rng);
+            let setup = setup(l, &mut rng);
             let rev_indices: Vec<usize> = (0..l / 2).collect();
             let challenge = Fr::rand(&mut rng);
 
@@ -110,27 +143,32 @@ fn bench_verify_present(c: &mut Criterion) {
                 &setup.sig,
                 &setup.params,
                 msgs_and_blindings,
-            )
-            .unwrap();
+            ).unwrap();
             let proof = protocol.gen_proof(&challenge).unwrap();
 
             let revealed_msgs: BTreeMap<usize, Fr> =
                 rev_indices.iter().map(|&i| (i, setup.messages[i])).collect();
 
             b.iter(|| {
-                proof
-                    .verify(
+                proof.verify(
                         black_box(&revealed_msgs),
                         black_box(&challenge),
                         setup.keypair.public_key.clone(),
                         setup.params.clone(),
-                    )
-                    .unwrap()
+                    ).unwrap()
             });
         });
     }
     group.finish();
 }
 
-criterion_group!(benches, bench_sign, bench_present, bench_verify_present);
+fn setup(l: usize, rng: &mut impl Rng) -> BenchSetup {
+    let params = SignatureParams23G1::<E>::generate_using_rng(rng, l as u32);
+    let keypair = KeypairG2::<E>::generate_using_rng_and_bbs23_params(rng, &params);
+    let messages: Vec<Fr> = (0..l).map(|_| Fr::rand(rng)).collect();
+    let sig = Signature23G1::<E>::new(rng, &messages, &keypair.secret_key, &params).unwrap();
+    BenchSetup { params, keypair, messages, sig }
+}
+
+criterion_group!(benches, bench_sign, bench_blind_sign, bench_present, bench_verify_present);
 criterion_main!(benches);
