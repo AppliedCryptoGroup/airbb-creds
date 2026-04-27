@@ -1,5 +1,5 @@
 use airbnb_creds::keys::keygen;
-use airbnb_creds::presentation::{present, verify_present, Credential};
+use airbnb_creds::presentation::{present, verify_present_optimized, Credential};
 use airbnb_creds::signature::sign;
 use airbnb_creds::PublicParams;
 use ark_bls12_381::Fr;
@@ -53,10 +53,11 @@ fn bench_verify_present(c: &mut Criterion) {
                     .expect("present failed");
 
             b.iter(|| {
-                verify_present(
+                verify_present_optimized(
                     black_box(&setup.params),
                     black_box(&setup.vk),
                     black_box(&presentation),
+                    black_box(&mut rng)
                 )
                 .expect("verify_present failed");
             });
