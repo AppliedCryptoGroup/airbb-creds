@@ -2,7 +2,7 @@
 
 This repository implements a Rust prototype of the "AirBB: Lightweight Anonymous Credentials without Random Oracles from BB Signatures" paper, including tests and benchmarks.
 
-Uses the arkworks BLS12-381 implementation and Criterion for benchmarks
+Builds on the [arkworks](https://github.com/arkworks-rs/algebra) BLS12-381 curve implementation and uses Criterion for benchmarks.
 ```
 cargo test              # Run all tests
 cargo bench             # Run all benchmarks
