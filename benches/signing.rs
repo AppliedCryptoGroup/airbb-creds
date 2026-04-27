@@ -28,6 +28,7 @@ fn bench_signing(c: &mut Criterion) {
 
 }
 
+// Blind signing while revealing half of the attributes.
 fn bench_blind_signing(c: &mut Criterion) {
     let mut group = c.benchmark_group("blind_signing");
     let mut rng = ark_std::test_rng();

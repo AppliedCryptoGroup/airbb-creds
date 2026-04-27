@@ -3,7 +3,7 @@ use ark_ff::UniformRand;
 use bbs_plus::proof_23::PoKOfSignature23G1Protocol;
 use bbs_plus::setup::{KeypairG2, SignatureParams23G1};
 use bbs_plus::signature_23::Signature23G1;
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion, Throughput};
 use dock_crypto_utils::signature::MessageOrBlinding;
 use rand::Rng;
 use std::collections::BTreeMap;
@@ -41,6 +41,7 @@ fn bench_sign(c: &mut Criterion) {
     group.finish();
 }
 
+// Blind signing while revealing half of the attributes.
 fn bench_blind_sign(c: &mut Criterion) {
     let mut group = c.benchmark_group("bbs/blind_signing");
     let mut rng = ark_std::test_rng();
@@ -82,6 +83,7 @@ fn bench_blind_sign(c: &mut Criterion) {
     group.finish();
 }
 
+// Creating a presentation while revealing half of the attributes.
 fn bench_present(c: &mut Criterion) {
     let mut group = c.benchmark_group("bbs/present");
     let mut rng = ark_std::test_rng();
@@ -117,12 +119,12 @@ fn bench_present(c: &mut Criterion) {
     group.finish();
 }
 
+// Verifying a presentation with half of the attributes being revealed.
 fn bench_verify_present(c: &mut Criterion) {
     let mut group = c.benchmark_group("bbs/verify_present");
     let mut rng = ark_std::test_rng();
-    let sizes: Vec<usize> = vec![1, 10, 50, 100, 500];
 
-    for l in sizes {
+    for &l in NUM_ATTR {
         group.throughput(Throughput::Elements(l as u64));
         group.bench_with_input(BenchmarkId::from_parameter(l), &l, |b, &l| {
             let setup = setup(l, &mut rng);
@@ -149,14 +151,13 @@ fn bench_verify_present(c: &mut Criterion) {
             let revealed_msgs: BTreeMap<usize, Fr> =
                 rev_indices.iter().map(|&i| (i, setup.messages[i])).collect();
 
-            b.iter(|| {
-                proof.verify(
-                        black_box(&revealed_msgs),
-                        black_box(&challenge),
-                        setup.keypair.public_key.clone(),
-                        setup.params.clone(),
-                    ).unwrap()
-            });
+            b.iter_batched(
+                || (setup.keypair.public_key.clone(), setup.params.clone()),
+                |(pk, p)| {
+                    proof.verify(black_box(&revealed_msgs), black_box(&challenge), pk, p).unwrap()
+                },
+                BatchSize::SmallInput,
+            );
         });
     }
     group.finish();
