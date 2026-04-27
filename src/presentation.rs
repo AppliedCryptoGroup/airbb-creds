@@ -95,7 +95,7 @@ pub fn verify_present(params: &PublicParams, vk: &VerificationKey, presentation:
     // g1^(τ-aux)
     let aux_g1 = (params.g1_tau[0] + params.g1 * (-presentation.aux)).into_affine();
 
-    // Check e(g1^(τ-aux), C) = e(h2^{p_{M_rev}(τ)}, C_hid)
+    // Check e(g1^(τ-aux), C) = e(C_hid, h2^{p_{M_rev}(τ)})
     let com = presentation.com.as_g2().ok_or(Error::CommitmentWrongGroup { exp_group: CommitGroup::G2 })?;
     let com_hid = presentation.com_hid.as_g1().ok_or(Error::CommitmentWrongGroup { exp_group: CommitGroup::G1 })?;
     let lhs_com: PairingOutput<Bls12_381> = Bls12_381::pairing(aux_g1, com.clone());
@@ -107,4 +107,25 @@ pub fn verify_present(params: &PublicParams, vk: &VerificationKey, presentation:
         Bls12_381::pairing(presentation.sig.sigma2, com);
 
     Ok(lhs_com == rhs_com && lhs_sig == rhs_sig)
+}
+
+/// The optimized version of the presentation verification algorithm with one pairing less.
+pub fn verify_present_optimized(params: &PublicParams, vk: &VerificationKey, presentation: &Presentation, rng: &mut impl Rng) -> Result<bool, Error> {
+    let gamma = Fr::rand(rng);
+    let rev_h2 = commit(params, &presentation.rev_attributes, &Fr::one(), CommitGroup::G2)?
+        .as_g2().ok_or(Error::CommitmentWrongGroup { exp_group: CommitGroup::G2 })?;
+    // g1^((τ-aux)*γ)
+    let aux_g1 = (params.g1_tau[0] + params.g1 * (-presentation.aux)) * gamma;
+
+    let com = presentation.com.as_g2().ok_or(Error::CommitmentWrongGroup { exp_group: CommitGroup::G2 })?;
+    let com_hid = presentation.com_hid.as_g1().ok_or(Error::CommitmentWrongGroup { exp_group: CommitGroup::G1 })?;
+
+    // Check e(σ₁', g2) * e(C_hid, h2^{p_{M_rev}(τ)})^γ = vk · e(σ₂' * g1^((τ-aux)*γ), C)
+    let lhs_sig: PairingOutput<Bls12_381> = Bls12_381::pairing(presentation.sig.sigma1, params.g2);
+    let lhs_com: PairingOutput<Bls12_381> = Bls12_381::pairing(com_hid, rev_h2) * gamma;
+    let lhs = lhs_sig + lhs_com;
+    let rhs = PairingOutput::<Bls12_381>(vk.0) +
+        Bls12_381::pairing(presentation.sig.sigma2 + aux_g1, com);
+
+    Ok(lhs == rhs)
 }

@@ -1,5 +1,5 @@
 use airbnb_creds::keys::keygen;
-use airbnb_creds::presentation::{present, verify_present, Credential, Presentation};
+use airbnb_creds::presentation::{present, verify_present, verify_present_optimized, Credential, Presentation};
 use airbnb_creds::signature::sign;
 use airbnb_creds::PublicParams;
 use ark_bls12_381::Fr;
@@ -21,8 +21,10 @@ fn test_present_sel_reveal() {
 
     let presentation = present(&params, &cred, &rev_indices, &aux, &mut rng).unwrap();
     let result = verify_present(&params, &vk, &presentation).unwrap();
+    let result_opt = verify_present_optimized(&params, &vk, &presentation, &mut rng).unwrap();
 
     assert!(result, "selectively-revealed presentation should verify");
+    assert!(result_opt, "selectively-revealed presentation should verify (optimized)");
 }
 
 #[test]
@@ -41,8 +43,10 @@ fn test_present_full_reveal() {
 
     let presentation = present(&params, &cred, &rev_indices, &aux, &mut rng).unwrap();
     let result = verify_present(&params, &vk, &presentation).unwrap();
+    let result_opt = verify_present_optimized(&params, &vk, &presentation, &mut rng).unwrap();
 
     assert!(result, "full-reveal presentation should verify");
+    assert!(result_opt, "full-reveal presentation should verify (optimized)");
 }
 
 #[test]
@@ -60,8 +64,10 @@ fn test_present_no_reveal() {
 
     let presentation = present(&params, &cred, &[], &aux, &mut rng).unwrap();
     let result = verify_present(&params, &vk, &presentation).unwrap();
+    let result_opt = verify_present_optimized(&params, &vk, &presentation, &mut rng).unwrap();
 
     assert!(result, "zero-reveal presentation should verify");
+    assert!(result_opt, "zero-reveal presentation should verify (optimized)");
 }
 
 #[test]
@@ -86,15 +92,15 @@ fn test_present_wrong_aux() {
         com: presentation.com,
         com_hid: presentation.com_hid,
         rev_attributes: presentation.rev_attributes,
-        aux: wrong_aux, // use the wrong aux
+        aux: wrong_aux,
     };
 
     let result = verify_present(&params, &vk, &presentation_wrong_aux).unwrap();
+    let result_opt = verify_present_optimized(&params, &vk, &presentation_wrong_aux, &mut rng).unwrap();
 
     assert!(!result, "presentation with wrong aux should not verify");
+    assert!(!result_opt, "presentation with wrong aux should not verify (optimized)");
 }
-
-
 
 #[test]
 fn test_present_wrong_revealed_messages_fails() {
@@ -122,7 +128,8 @@ fn test_present_wrong_revealed_messages_fails() {
     };
 
     let result = verify_present(&params, &vk, &presentation_bad_rev).unwrap();
+    let result_opt = verify_present_optimized(&params, &vk, &presentation_bad_rev, &mut rng).unwrap();
 
     assert!(!result, "presentation with wrong revealed attributes should not verify");
+    assert!(!result_opt, "presentation with wrong revealed attributes should not verify (optimized)");
 }
-
